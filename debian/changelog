@@ -1,3 +1,9 @@
+tb-updater (3:39.2-2) unstable; urgency=medium
+
+  * New upstream version (local package).
+
+ -- Aaron Rainbolt <arraybolt3@ubuntu.com>  Fri, 01 Aug 2025 15:28:22 -0500
+
 tb-updater (3:39.2-1) unstable; urgency=medium
 
   * New upstream version (local package).
