@@ -18,10 +18,6 @@ cd ..
 cd ..
 cd ..
 
-## Provides function tbbversion and its result variables. 'shellcheck -x'
-## follows this source= directive (helper-scripts provided in CI via
-## dm-consumer.yml 'dist-ai-tests: helper-scripts: true'), so no SC1091 /
-## SC2154 disable is needed. R-080 requires the relative source= spelling.
 # shellcheck source=../../libexec/tb-updater/version-validator
 source ./usr/libexec/tb-updater/version-validator
 

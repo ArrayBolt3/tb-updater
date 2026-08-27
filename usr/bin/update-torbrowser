@@ -710,9 +710,8 @@ tb_settings_qubes_common_templatevm() {
 }
 
 tb_settings_not_templatevm() {
-   ## Intentional no-op hook. Called on the non-Qubes-Template path,
-   ## symmetric with tb_settings_qubes_common_templatevm; kept as an
-   ## extension point for non-template-specific settings.
+   ## Intentional no-op hook. Kept as an extension point for
+   ## non-template-specific settings.
    true
 }
 
