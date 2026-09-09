@@ -1,9 +1,63 @@
+commit eca6adbb733425d0a21144091036b110c5ff1801
+Merge: 996300e ef27968
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Sun Aug 30 10:19:32 2026 -0400
+
+    Merge remote-tracking branch 'refs/remotes/ArrayBolt3/arraybolt3/trixie'
+
+commit ef279681746da71ee9d2be41cb27784f9abb754f
+Author: Aaron Rainbolt <arraybolt3@gmail.com>
+Date:   Wed Aug 26 23:13:29 2026 -0400
+
+    comments
+
+commit e256f3bf659af9e24efb7d510c94a10f41c4f717
+Merge: 47537d8 5132286
+Author: Aaron Rainbolt <arraybolt3@gmail.com>
+Date:   Wed Aug 26 22:06:03 2026 -0400
+
+    Merge branch 'ai' into arraybolt3/trixie
+
+commit 513228660e50d804a404a33070c526d9176169e8
+Merge: a2b1dac 996300e
+Author: claude (dev360 af829598-ca19-4edf-a20a-beea79d986e6) <noreply@anthropic.com>
+Date:   Wed Aug 26 04:02:54 2026 -0400
+
+    Merge master into ai
+
+    - absorbs upstream so the PR diff carries only our own work
+
+commit 996300ef9cf0bb2bea9b89a6307d448f2346f02e
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Wed Aug 26 08:01:23 2026 +0000
+
+    bumped changelog version
+
 commit c4ed06f0a29ecb9df84772fb26deebc87c4939d7
 Merge: 1a474db 3f419ae
 Author: Patrick Schleizer <adrelanos@whonix.org>
 Date:   Mon Aug 24 23:54:58 2026 -0400
 
     Merge remote-tracking branch 'refs/remotes/org-ai-assisted/ai'
+
+commit a2b1dac86e291640d14c56cbb35eaa17a95f9f45
+Merge: e4a2b21 1a474db
+Author: claude (dev324 ab3c3a3e-ef7d-4e9e-9628-e3bc7ed5d0f6) <noreply@anthropic.com>
+Date:   Mon Aug 24 23:50:01 2026 -0400
+
+    Merge branch 'master' into ai
+
+commit e4a2b214104cbc90ed8795feba3967c906c4915f
+Author: assisted-by-ai (Bot Account) (Machine Account) <228987186+assisted-by-ai@users.noreply.github.com>
+Date:   Mon Aug 24 23:31:31 2026 -0400
+
+    ci: drop orphaned consumer-codex-review.yml (reusable decommissioned)
+
+commit b4a7131dcaf2e13e30b9fb5eb0bcb6629ac2987d
+Author: assisted-by-ai (Bot Account) (Machine Account) <228987186+assisted-by-ai@users.noreply.github.com>
+Date:   Mon Aug 24 23:31:28 2026 -0400
+
+    ci: drop orphaned consumer-claude-code.yml (reusable decommissioned)
 
 commit 1a474db29a68522b933c28b0aa9cbae81d360f7c
 Author: Patrick Schleizer <adrelanos@whonix.org>
