@@ -75,22 +75,35 @@ main() {
       exit 0
    fi
 
-   ## Mount point must be existing to be able to use mount.
-   mkdir --parents -- "/home/${user_name}/.tb"
-   chown -- "${user_name}:${user_name}" "/home/${user_name}/.tb"
-   mkdir --parents -- "/home/${user_name}/.cache/tb"
-   chown -- "${user_name}:${user_name}" "/home/${user_name}/.cache/tb"
-   ## .cache will end up owned by root if it doesn't already exist.
-   ## https://forums.whonix.org/t/home-user-cache-permission-issue-in-recent-updates/21427
-   chown -- "${user_name}:${user_name}" "/home/${user_name}/.cache"
+   ## Mount points must exist to be able to use mount.
+   ##
+   ## Create them AS the user, never as root: a pre-planted symlink at these
+   ## paths would otherwise be a root chown-follow LPE (CWE-59). The DispVM home
+   ## is a clone of the DVM Template home, so the unprivileged user can plant
+   ## such a link before this early-boot root service runs. Dropping privileges
+   ## makes any symlink escalation impossible (EPERM) by construction, and the
+   ## directories end up owned by the user without a root 'chown' at all.
+   ## 'mkdir --parents .cache/tb' also creates '.cache', owned by the user.
+   user_uid="$(id -u "${user_name}")"
+   user_gid="$(id -g "${user_name}")"
+   setpriv --reuid "${user_uid}" --regid "${user_gid}" --init-groups --reset-env -- \
+      mkdir --parents -- "/home/${user_name}/.tb" "/home/${user_name}/.cache/tb"
 
-   chown --recursive -- "${user_name}:${user_name}" /var/cache/tb-binary
-   ## Could alternatively do after mounting:
-   #chown --recursive "${user_name}:${user_name}" "/home/${user_name}/.tb"
-   #chown --recursive "${user_name}:${user_name}" "/home/${user_name}/.cache/tb"
-   ## But that would not give any security advantage since changing permissions
-   ## after bind mount will also result in the original folder changing
-   ## permissions.
+   ## The 'mount --bind' calls below run as root and would follow a symlinked
+   ## mount point (or a symlinked '.cache' parent of the '.cache/tb' target). A
+   ## legitimate DispVM never has these as symlinks; the user is not running
+   ## yet, so there is no TOCTOU race.
+   for tb_mount_point in \
+      "/home/${user_name}/.tb" \
+      "/home/${user_name}/.cache" \
+      "/home/${user_name}/.cache/tb" ; do
+      if [ -L "${tb_mount_point}" ]; then
+         printf '%s\n' "$0: ERROR: refusing unexpected symlink at '${tb_mount_point}'!" >&2
+         exit 1
+      fi
+   done
+
+   chown --recursive --no-dereference -- "${user_name}:${user_name}" /var/cache/tb-binary
 
    if [ -d "/var/cache/tb-binary/.tb" ]; then
       mount --bind -o nosuid,nodev -- "/var/cache/tb-binary/.tb" "/home/${user_name}/.tb"
