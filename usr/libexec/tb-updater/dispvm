@@ -77,13 +77,17 @@ main() {
 
    ## Mount points must exist to be able to use mount.
    ##
-   ## Reject a symlink at any of these paths FIRST: the root 'mount --bind' and
-   ## the '.cache' 'chown' below would otherwise follow it -- a root
-   ## symlink-follow LPE (CWE-59). The DispVM home is a clone of the DVM Template
-   ## home, so the unprivileged user can pre-plant such a link before this
-   ## early-boot root service runs. A legitimate DispVM never has these as
-   ## symlinks; the user is not running yet, so there is no TOCTOU race between
-   ## this check and the use.
+   ## Reject a symlink at any of these paths FIRST: a root symlink-follow would
+   ## be an LPE (CWE-59). The DispVM home is a clone of the DVM Template home, so
+   ## the unprivileged user can pre-plant such a link before this early-boot root
+   ## service runs. A legitimate DispVM never has these as symlinks.
+   ##
+   ## The 'chown' calls below use '--no-dereference', so they never follow a
+   ## symlink regardless of this check. Only 'mount --bind' can follow a
+   ## symlinked mount point; the guard rejects that. There is no exploitable
+   ## check-to-use (TOCTOU) race: this service runs 'Before=qubes-gui-agent.service'
+   ## (before any user session), so no unprivileged process exists to swap a path
+   ## after the check -- the link must be pre-planted, which the guard catches.
    for tb_mount_point in \
       "/home/${user_name}/.tb" \
       "/home/${user_name}/.cache" \
@@ -94,24 +98,14 @@ main() {
       fi
    done
 
-   ## A pre-existing '.cache' may be owned by root
-   ## ( https://forums.whonix.org/t/home-user-cache-permission-issue-in-recent-updates/21427 ),
-   ## which would stop the unprivileged 'mkdir' below from creating '.cache/tb'.
-   ## Fix its ownership as root -- safe now that the symlink guard above ran
-   ## ('--no-dereference' as belt-and-suspenders).
-   if [ -e "/home/${user_name}/.cache" ]; then
-      chown --no-dereference -- "${user_name}:${user_name}" "/home/${user_name}/.cache"
-   fi
-
-   ## Create the mount-point directories AS the user, never as root: an
-   ## unprivileged 'mkdir'/'chown' cannot be tricked into escalating via a
-   ## symlink (EPERM), so the tb-specific directories end up user-owned with no
-   ## root 'chown' of them at all. 'mkdir --parents .cache/tb' also creates
-   ## '.cache' (user-owned) when it does not already exist.
-   user_uid="$(id -u "${user_name}")"
-   user_gid="$(id -g "${user_name}")"
-   setpriv --reuid "${user_uid}" --regid "${user_gid}" --init-groups --reset-env -- \
-      mkdir --parents -- "/home/${user_name}/.tb" "/home/${user_name}/.cache/tb"
+   ## 'mkdir --parents .cache/tb' also creates '.cache'. 'chown --no-dereference'
+   ## then fixes ownership of both newly created and pre-existing directories
+   ## (e.g. a '.cache' cloned root-owned from the DVM Template -- forums 21427),
+   ## safe now that the symlink guard above ran.
+   mkdir --parents -- "/home/${user_name}/.tb" "/home/${user_name}/.cache/tb"
+   chown --no-dereference -- "${user_name}:${user_name}" "/home/${user_name}/.tb"
+   chown --no-dereference -- "${user_name}:${user_name}" "/home/${user_name}/.cache"
+   chown --no-dereference -- "${user_name}:${user_name}" "/home/${user_name}/.cache/tb"
 
    chown --recursive --no-dereference -- "${user_name}:${user_name}" /var/cache/tb-binary
 
