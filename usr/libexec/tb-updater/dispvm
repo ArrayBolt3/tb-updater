@@ -75,19 +75,29 @@ main() {
       exit 0
    fi
 
+   ## This mount setup is a one-time PRE-SESSION boot task (ordered
+   ## 'Before=qubes-gui-agent.service'). Refuse to run once the user session is
+   ## up: on a later restart (e.g. a 'tb-updater' upgrade, which
+   ## dh_installsystemd restarts by default) the unprivileged user is running
+   ## and could win a check-to-use race against the root 'mount --bind' below,
+   ## swapping a mount point to a symlink after the guard passed. At first boot
+   ## the session is not up yet, so there is no such racer; the mounts persist,
+   ## so a skipped restart is a no-op, not a regression.
+   if systemctl --quiet is-active qubes-gui-agent.service 2>/dev/null; then
+      exit 0
+   fi
+
    ## Mount points must exist to be able to use mount.
    ##
    ## Reject a symlink at any of these paths FIRST: a root symlink-follow would
    ## be an LPE (CWE-59). The DispVM home is a clone of the DVM Template home, so
    ## the unprivileged user can pre-plant such a link before this early-boot root
-   ## service runs. A legitimate DispVM never has these as symlinks.
-   ##
-   ## The 'chown' calls below use '--no-dereference', so they never follow a
-   ## symlink regardless of this check. Only 'mount --bind' can follow a
-   ## symlinked mount point; the guard rejects that. There is no exploitable
-   ## check-to-use (TOCTOU) race: this service runs 'Before=qubes-gui-agent.service'
-   ## (before any user session), so no unprivileged process exists to swap a path
-   ## after the check -- the link must be pre-planted, which the guard catches.
+   ## service runs. A legitimate DispVM never has these as symlinks. The 'chown'
+   ## calls below use '--no-dereference' (never follow a symlink regardless);
+   ## only 'mount --bind' can follow a symlinked mount point, which the guard
+   ## rejects. The pre-session gate above removes the check-to-use (TOCTOU)
+   ## racer, so a pre-planted link is the only remaining vector and the guard
+   ## catches it.
    for tb_mount_point in \
       "/home/${user_name}/.tb" \
       "/home/${user_name}/.cache" \
