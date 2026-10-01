@@ -140,6 +140,12 @@ main() {
    # /dev/xvda3 on /rw/home/user/.tb type ext4 (rw,nosuid,nodev,noatime,discard)
    # /dev/xvda3 on /home/user/.cache/tb type ext4 (rw,nosuid,nodev,noatime,discard)
    # /dev/xvda3 on /rw/home/user/.cache/tb type ext4 (rw,nosuid,nodev,noatime,discard)
+
+   ## Mark setup complete so a restart this boot is skipped (unit:
+   ## ConditionPathExists=!/run/tb-updater-dispvm.done). Root-owned tmpfs /run is
+   ## not user-writable, so the stamp cannot be forged or removed to force a
+   ## racy re-run; it clears on reboot, giving run-once-per-boot.
+   touch -- /run/tb-updater-dispvm.done
 }
 
 if was_executed "${BASH_SOURCE[0]}"; then
