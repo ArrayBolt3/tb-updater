@@ -1,0 +1,104 @@
+#!/usr/bin/python3 -Bsu
+
+## Copyright (C) 2019 - 2025 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
+## See the file COPYING for copying conditions.
+
+## AI-Assisted
+
+## TOCTOU-safe bind mount for tb-updater's Qubes DispVM setup.
+##
+## Usage: dispvm-bind-mount SOURCE TARGET
+##
+## Bind-mounts SOURCE onto TARGET with nosuid,nodev. BOTH paths are resolved one
+## component at a time with O_NOFOLLOW, so a symlink anywhere in either path is
+## refused rather than followed, and the mount is performed against the pinned
+## directory file descriptors (/proc/self/fd/N). Because the kernel attaches to
+## the inode the fd already holds -- not a re-walk of the path string -- a
+## concurrent rename of the path cannot redirect root into following a symlink.
+## This is the check-to-use (TOCTOU) race that a plain 'mount --bind <path>' is
+## subject to when the mount point lives in a user-writable directory. Run as
+## root.
+
+import ctypes
+import os
+import stat
+import sys
+
+MS_NOSUID = 0x2
+MS_NODEV = 0x4
+MS_REMOUNT = 0x20
+MS_BIND = 0x1000
+
+
+def die(message):
+    print(f"{os.path.basename(sys.argv[0])}: ERROR: {message}", file=sys.stderr)
+    sys.exit(1)
+
+
+def open_nofollow_directory(path):
+    """Return an O_PATH|O_CLOEXEC directory fd for the absolute PATH, opening
+    every component with O_NOFOLLOW and rejecting any component that is a symlink
+    or not a directory. O_PATH needs only search (+x) permission -- not read --
+    and fstat on the resulting fd gives an unambiguous type check (O_DIRECTORY
+    with O_PATH|O_NOFOLLOW does not reliably fail on a symlink). The caller owns
+    and closes the fd."""
+    if not path.startswith("/"):
+        die(f"path is not absolute: {path!r}")
+    flags = os.O_PATH | os.O_NOFOLLOW | os.O_CLOEXEC
+    ## '/' is never a symlink; walk from it one component at a time.
+    dir_fd = os.open("/", os.O_PATH | os.O_CLOEXEC)
+    try:
+        for component in path.strip("/").split("/"):
+            if component in ("", ".", ".."):
+                die(f"unsafe path component in {path!r}")
+            next_fd = os.open(component, flags, dir_fd=dir_fd)
+            os.close(dir_fd)
+            dir_fd = next_fd
+            mode = os.fstat(dir_fd).st_mode
+            if stat.S_ISLNK(mode):
+                die(f"refusing symlink component in {path!r}")
+            if not stat.S_ISDIR(mode):
+                die(f"refusing non-directory component in {path!r}")
+    except OSError as exc:
+        os.close(dir_fd)
+        die(f"refusing to resolve {path!r}: {exc.strerror}")
+    return dir_fd
+
+
+def do_mount(libc, source, target, flags):
+    source_arg = source.encode() if source is not None else None
+    if libc.mount(source_arg, target.encode(), None, flags, None) != 0:
+        errno = ctypes.get_errno()
+        die(f"mount(flags={flags:#x}) failed: {os.strerror(errno)}")
+
+
+def main():
+    if len(sys.argv) != 3:
+        die("usage: dispvm-bind-mount SOURCE TARGET")
+    source, target = sys.argv[1], sys.argv[2]
+
+    libc = ctypes.CDLL("libc.so.6", use_errno=True)
+    libc.mount.argtypes = (ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p,
+                           ctypes.c_ulong, ctypes.c_void_p)
+
+    source_fd = open_nofollow_directory(source)
+    target_fd = open_nofollow_directory(target)
+    ## Bind the pinned source inode onto the pinned target inode. Using the
+    ## fds (via /proc/self/fd) is what makes this immune to a concurrent symlink
+    ## swap at either path.
+    do_mount(libc, f"/proc/self/fd/{source_fd}", f"/proc/self/fd/{target_fd}",
+             MS_BIND)
+    os.close(source_fd)
+    os.close(target_fd)
+
+    ## A plain bind does not honor nosuid,nodev; a remount applies them. The fds
+    ## above now refer to the inode UNDER the new mount, so re-resolve the target
+    ## (still with O_NOFOLLOW) to land on the mount itself, then remount it.
+    mount_fd = open_nofollow_directory(target)
+    do_mount(libc, None, f"/proc/self/fd/{mount_fd}",
+             MS_REMOUNT | MS_BIND | MS_NOSUID | MS_NODEV)
+    os.close(mount_fd)
+
+
+if __name__ == "__main__":
+    main()

@@ -119,11 +119,18 @@ main() {
 
    chown --recursive --no-dereference -- "${user_name}:${user_name}" /var/cache/tb-binary
 
+   ## Bind the persistent Tor Browser cache into the user's home via a
+   ## TOCTOU-safe helper: it resolves the mount point with O_NOFOLLOW and mounts
+   ## against the pinned fd, so a concurrent symlink swap at the mount point
+   ## cannot redirect this root 'mount --bind' into following a symlink -- the
+   ## lifecycle-independent close of the check-to-use race (the symlink guard,
+   ## --no-start and the run-once stamp above are defense in depth around it).
+   dispvm_bin_dir="$(dirname -- "$(readlink --canonicalize -- "${BASH_SOURCE[0]}")")"
    if [ -d "/var/cache/tb-binary/.tb" ]; then
-      mount --bind -o nosuid,nodev -- "/var/cache/tb-binary/.tb" "/home/${user_name}/.tb"
+      "${dispvm_bin_dir}/dispvm-bind-mount" "/var/cache/tb-binary/.tb" "/home/${user_name}/.tb"
    fi
    if [ -d "/var/cache/tb-binary/.cache/tb" ]; then
-      mount --bind -o nosuid,nodev -- "/var/cache/tb-binary/.cache/tb" "/home/${user_name}/.cache/tb"
+      "${dispvm_bin_dir}/dispvm-bind-mount" "/var/cache/tb-binary/.cache/tb" "/home/${user_name}/.cache/tb"
    fi
 
    ## results in:
