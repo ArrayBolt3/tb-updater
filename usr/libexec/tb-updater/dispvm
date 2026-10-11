@@ -89,12 +89,23 @@ main() {
 
    touch -- /run/tb-updater-dispvm.done
 
-   ## Early symlink check. Vulnerable to TOCTOU but this is not a problem
-   ## because this script is run before sysinit.target comes up.
+   ## Refuse a symlink at any bind source or target before the mkdir/chown/mount
+   ## below. These are check-to-use pairs, but there is no TOCTOU window: the
+   ## service runs exactly ONCE per boot, at early boot before any user/qrexec
+   ## process exists to race the check -- debian/rules pins
+   ## 'dh_installsystemd --no-start' (dpkg never restarts it) and the unit sets
+   ## 'ConditionPathExists=!/run/tb-updater-dispvm.done' (a manual restart
+   ## no-ops). See tb-updater-dispvm.service and debian/rules.
+   ## Source paths are covered too: 'chown --recursive' below makes the cache
+   ## user-owned, and a DispVM home/cache is a DVM-Template clone, so a symlink
+   ## could be pre-planted on either side.
    for tb_mount_point in \
       "${home_base_dir}/${user_name}/.tb" \
       "${home_base_dir}/${user_name}/.cache" \
-      "${home_base_dir}/${user_name}/.cache/tb" ; do
+      "${home_base_dir}/${user_name}/.cache/tb" \
+      "${tb_binary_cache_dir}/.tb" \
+      "${tb_binary_cache_dir}/.cache" \
+      "${tb_binary_cache_dir}/.cache/tb" ; do
       if [ -L "${tb_mount_point}" ]; then
          printf '%s\n' "$0: ERROR: refusing unexpected symlink at '${tb_mount_point}'!" >&2
          exit 1
@@ -120,13 +131,16 @@ main() {
    ## /var/cache path, not under /home; recursive chown does not follow symlinks.
    chown --recursive --no-dereference -- "${user_name}:${user_name}" "${tb_binary_cache_dir}"
 
-   ## There is similarly no way to prevent mount from always dereferencing
-   ## symlinks, but the symlink guard above gives us sufficient safety.
+   ## Bind the persistent cache onto the user's home. --no-canonicalize makes
+   ## mount refuse a symlinked target (mountpoint) at the mount layer regardless
+   ## of timing; the symlink guard above additionally refuses a symlinked source
+   ## or target before reaching here. (--no-canonicalize does not guard the bind
+   ## SOURCE, which the guard above covers.)
    if [ -d "${tb_binary_cache_dir}/.tb" ]; then
-      mount --bind -o nosuid,nodev -- "${tb_binary_cache_dir}/.tb" "${home_base_dir}/${user_name}/.tb"
+      mount --no-canonicalize --bind -o nosuid,nodev -- "${tb_binary_cache_dir}/.tb" "${home_base_dir}/${user_name}/.tb"
    fi
    if [ -d "${tb_binary_cache_dir}/.cache/tb" ]; then
-      mount --bind -o nosuid,nodev -- "${tb_binary_cache_dir}/.cache/tb" "${home_base_dir}/${user_name}/.cache/tb"
+      mount --no-canonicalize --bind -o nosuid,nodev -- "${tb_binary_cache_dir}/.cache/tb" "${home_base_dir}/${user_name}/.cache/tb"
    fi
 
    ## results in:
@@ -137,12 +151,13 @@ main() {
    # /dev/xvda3 on /home/user/.cache/tb type ext4 (rw,nosuid,nodev,noatime,discard)
    # /dev/xvda3 on /rw/home/user/.cache/tb type ext4 (rw,noatime,discard)
 
-   ## Remount with nosuid,nodev.
+   ## Remount the Qubes-persistent copies with nosuid,nodev. --no-canonicalize
+   ## for consistency with the binds above (accepted and harmless on remount).
    if [ -d "/rw/home/${user_name}/.tb" ]; then
-      mount -o remount,nosuid,nodev -- "/rw/home/${user_name}/.tb"
+      mount --no-canonicalize -o remount,nosuid,nodev -- "/rw/home/${user_name}/.tb"
    fi
    if [ -d "/rw/home/${user_name}/.cache/tb" ]; then
-      mount -o remount,nosuid,nodev -- "/rw/home/${user_name}/.cache/tb"
+      mount --no-canonicalize -o remount,nosuid,nodev -- "/rw/home/${user_name}/.cache/tb"
    fi
 
    ## results in:
